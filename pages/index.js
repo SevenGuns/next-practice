@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import moment from 'moment';
-import { Select, Row, Col } from 'antd';
+import { Select, Row, Col, Divider, Icon } from 'antd';
 
 function rem($px) {
   return `${(10 * $px) / 1280}rem`;
@@ -11,6 +11,22 @@ moment.locale('zh-CN');
 const { Option } = Select;
 function Index(props) {
   const { goldNews = [], githubNews = [] } = props;
+  const [goldList, setGoldList] = useState([]);
+  const [newsList, setNewsList] = useState([]);
+
+  const [category, setCategory] = useState(getCategories.defaultValue);
+  const [lang, setLang] = useState(getLangList.defaultValue);
+  const onCategoryChange = async value => {
+    setCategory(value);
+    const dataList = await fetchGold(category);
+    setGoldList(dataList);
+  };
+  const onLangChange = async value => {
+    setLang(value);
+    const dataList = await fetchGithub(value);
+    setNewsList(dataList);
+  };
+
   return (
     <div className="wrap">
       <div className="gold-pane">
@@ -23,7 +39,8 @@ function Index(props) {
           <span className="juejin-font">掘金</span>
           <Select
             style={{ width: 120 }}
-            defaultValue={getCategories.defaultValue}
+            value={category}
+            onChange={onCategoryChange}
           >
             {getCategories().map(({ key, label }) => (
               <Option key={key} value={key}>
@@ -33,20 +50,22 @@ function Index(props) {
           </Select>
         </div>
         <div className="content">
-          {goldNews.map(({ id, title, date, collectionCount, user }) => (
-            <div key={id} className="gold-item">
-              <div className="collectionCount">{collectionCount}</div>
-              <div className="gold-info">
-                <div className="gold-title">{title}</div>
-                <div className="gold-footer">
-                  <span className="date">{moment(date.iso).fromNow()}</span>
-                  <a href={user.url} className="username">
-                    {user.username}
-                  </a>
+          {(goldList.length ? goldList : goldNews).map(
+            ({ title, date, collectionCount, user, id }) => (
+              <div key={id} className="gold-item">
+                <div className="collectionCount">{collectionCount}</div>
+                <div className="gold-info">
+                  <div className="gold-title">{title}</div>
+                  <div className="gold-footer">
+                    <span className="date">{moment(date.iso).fromNow()}</span>
+                    <a href={user.url} className="username">
+                      {user.username}
+                    </a>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
       </div>
       <div className="github-pane">
@@ -58,10 +77,7 @@ function Index(props) {
           />
           <span className="juejin-font github-font">GitHub</span>
           <div className="lang-selects">
-            <Select
-              style={{ width: 120 }}
-              defaultValue={getLangList.defaultValue}
-            >
+            <Select style={{ width: 120 }} value={lang} onChange={onLangChange}>
               {getLangList().map(({ key, label }) => (
                 <Option key={key} value={key}>
                   {label}
@@ -71,8 +87,8 @@ function Index(props) {
           </div>
         </div>
         <div className="content">
-          <Row>
-            {githubNews.map(
+          <Row gutter={[12, 12]}>
+            {(newsList.length ? newsList : githubNews).map(
               ({
                 id,
                 url,
@@ -84,30 +100,43 @@ function Index(props) {
                 langColor,
                 lang
               }) => (
-                <Col key={id}>
-                  <div className="title">
-                    <a href={url}>
-                      <span>{username}</span>
-                      <span>/</span>
-                      <span>{reponame}</span>
-                    </a>
-                  </div>
-                  <div className="description">{description}</div>
-                  <div className="footer">
-                    <span>{starCount}</span>
-                    <span>{forkCount}</span>
-                    <span>
-                      <span
-                        className="lang-color"
-                        style={{ backgroundColor: langColor }}
-                      ></span>
-                      {lang}
-                    </span>
+                <Col key={id} span={24} xl={12}>
+                  <div className="github-card">
+                    <div className="title">
+                      <a href={url} className="link-title">
+                        <span>{username}</span>
+                        <span className="title-divider"> / </span>
+                        <span>{reponame}</span>
+                      </a>
+                    </div>
+                    <div className="description">{description}</div>
+                    <div className="footer">
+                      <span>
+                        <Icon type="star" theme="filled"></Icon>
+                        <span className="label">{starCount}</span>
+                      </span>
+                      <span>
+                        <Icon type="fork" />
+                        <span className="label">{forkCount}</span>
+                      </span>
+                      {lang && (
+                        <span>
+                          <span
+                            className="lang-color"
+                            style={{ backgroundColor: langColor }}
+                          ></span>
+                          <span className="label">{lang}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </Col>
               )
             )}
           </Row>
+          <Divider>
+            <div className="bottom-text">已显示全部内容</div>
+          </Divider>
         </div>
       </div>
       <style jsx global>{`
@@ -123,10 +152,20 @@ function Index(props) {
         }
       `}</style>
       <style jsx>{`
+        .bottom-text {
+          padding-top: ${rem(16)};
+          color: #c2c5cd;
+          font-weight: 400;
+          font-size: ${rem(14)};
+        }
         .lang-color {
-          width: 20px;
-          height: 20px;
-          border-radius: 20px;
+          display: inline-block;
+          vertical-align: center;
+          font-size: 0;
+          line-height: 0;
+          width: 12px;
+          height: 12px;
+          border-radius: 12px;
         }
         .juejin-icon {
           width: ${rem(30)};
@@ -148,9 +187,8 @@ function Index(props) {
           padding: ${rem(20)} ${rem(18)} 0 ${rem(18)};
         }
         .gold-pane {
-          width: ${rem(600)};
+          width: ${rem(500)};
           height: 100%;
-          overflow: auto;
           flex: none;
           display: flex;
           flex-direction: column;
@@ -158,6 +196,8 @@ function Index(props) {
         }
         .github-pane {
           flex: auto;
+          display: flex;
+          flex-direction: column;
         }
         .filter {
           flex: none;
@@ -167,7 +207,7 @@ function Index(props) {
           height: ${rem(42)};
           background-color: #fff;
           border-radius: ${rem(2)};
-          margin-bottom: ${rem(10)};
+          margin-bottom: ${rem(16)};
           margin-right: ${rem(12)};
         }
         .content {
@@ -223,6 +263,38 @@ function Index(props) {
         .username {
           color: #c2c5cd;
         }
+        .github-card {
+          background-color: #fff;
+          padding: ${rem(16)};
+          border-radius: ${rem(2)};
+        }
+        .link-title {
+          color: rgb(3, 102, 214);
+          font-size: ${rem(14)};
+        }
+        .description {
+          height: ${rem(60)};
+          overflow: hidden;
+          margin-top: ${rem(10)};
+        }
+        .footer {
+          display: flex;
+          align-items: center;
+          margin-top: ${rem(10)};
+        }
+        .footer > span {
+          margin-right: ${rem(16)};
+          display: flex;
+          align-items: center;
+        }
+        .github-card .title {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .github-card .label {
+          margin-left: ${rem(3)};
+        }
       `}</style>
     </div>
   );
@@ -242,8 +314,24 @@ Index.getInitialProps = async () => {
 function getCategories() {
   return [
     {
+      key: 'all',
+      label: '首页'
+    },
+    {
       key: 'frontend',
       label: '前端'
+    },
+    {
+      key: 'backend',
+      label: '后端'
+    },
+    {
+      key: 'android',
+      label: 'Android'
+    },
+    {
+      key: 'ios',
+      label: 'iOS'
     }
   ];
 }
@@ -254,16 +342,32 @@ function getLangList() {
     {
       key: 'javascript',
       label: 'JavaScript'
+    },
+    {
+      key: 'css',
+      label: 'CSS'
+    },
+    {
+      key: 'html',
+      label: 'HTML'
+    },
+    {
+      key: 'typescript',
+      label: 'TypeScript'
+    },
+    {
+      key: 'coffeescript',
+      label: 'CoffeeScript'
     }
   ];
 }
 getLangList.defaultValue = 'javascript';
 
-async function fetchGold(category = 'frontend') {
+async function fetchGold(category = 'frontend', offset = 0) {
   const res = await axios.post(
     'https://extension-ms.juejin.im/resources/gold',
     {
-      data: { category, order: 'heat', offset: 0, limit: 30 }
+      data: { category, order: 'heat', offset, limit: 30 }
     }
   );
   return res.data.data;
